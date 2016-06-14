@@ -10,7 +10,7 @@
 
 use std::cell::RefCell;
 use std::io;
-use std::net::{ToSocketAddrs, TcpListener, TcpStream};
+use std::net::{SocketAddr, ToSocketAddrs, TcpListener, TcpStream};
 use std::fmt;
 
 use IntoInner;
@@ -116,6 +116,15 @@ impl TcpBuilder {
             .map(|s| s.into_inner().into_tcp_listener())
             .ok_or(io::Error::new(io::ErrorKind::Other,
                                   "socket has already been consumed"))
+    }
+
+    /// Get the address of the peer that this socket is connected to.
+    pub fn peer_addr(&self) -> io::Result<SocketAddr> {
+        match *self.socket.borrow() {
+            Some(ref s) => s.peer_addr(),
+            None => Err(io::Error::new(io::ErrorKind::Other,
+                                       "builder has already finished its socket")),
+        }
     }
 
     fn with_socket<F>(&self, f: F) -> io::Result<()>

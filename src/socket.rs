@@ -11,7 +11,7 @@
 use std::fmt;
 use std::io;
 use std::mem;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
 use libc::c_int;
 
 use sys;
@@ -44,6 +44,17 @@ impl Socket {
         unsafe {
             ::cvt(c::connect(self.inner.raw(), addr, len)).map(|_| ())
         }
+    }
+
+    pub fn peer_addr(&self) -> io::Result<SocketAddr> {
+        let mut addr: c::sockaddr = unsafe { mem::zeroed() };
+        let mut addr_len: c::socklen_t = 0;
+        try!(unsafe {
+            ::cvt(c::getpeername(self.inner.raw(),
+                                 &mut addr as *mut _,
+                                 &mut addr_len as *mut _)).map(|_| ())
+        });
+        Ok(raw2addr(&addr as *const _, addr_len))
     }
 }
 
@@ -80,3 +91,36 @@ fn addr2raw(addr: &SocketAddr) -> (*const c::sockaddr, c::socklen_t) {
         }
     }
 }
+
+#[allow(unused)]
+fn raw2addr(addr: *const c::sockaddr, len: c::socklen_t) -> SocketAddr {
+    if len as usize == mem::size_of::<SocketAddrV4>() {
+        unsafe {
+            let addr: *const SocketAddrV4 = mem::transmute(addr);
+            SocketAddr::V4(*addr)
+        }
+    }
+    else {
+        unsafe {
+            let addr: *const SocketAddrV6 = mem::transmute(addr);
+            SocketAddr::V6(*addr)
+        }
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_raw_and_back() {
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 56);
+    let (raw, raw_len) = addr2raw(&addr);
+    let back = raw2addr(raw, raw_len);
+    assert_eq!(addr, back);
+
+    let addr = SocketAddr::new(IpAddr::V6(Ipv6Addr::new(1, 2, 3, 4, 5, 6, 7, 8)), 56);
+    let (raw, raw_len) = addr2raw(&addr);
+    let back = raw2addr(raw, raw_len);
+    assert_eq!(addr, back);
+}
+
