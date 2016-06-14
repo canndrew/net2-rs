@@ -11,7 +11,7 @@
 use std::cell::RefCell;
 use std::fmt;
 use std::io;
-use std::net::{ToSocketAddrs, UdpSocket};
+use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 
 use IntoInner;
 use socket::Socket;
@@ -55,6 +55,15 @@ impl UdpBuilder {
             sock.bind(&addr)
         }));
         Ok(self.socket.borrow_mut().take().unwrap().into_inner().into_udp_socket())
+    }
+
+    /// Get the address of the peer that this socket is connected to.
+    pub fn peer_addr(&self) -> io::Result<SocketAddr> {
+        match *self.socket.borrow() {
+            Some(ref s) => s.peer_addr(),
+            None => Err(io::Error::new(io::ErrorKind::Other,
+                                       "builder has already finished its socket")),
+        }
     }
 
     fn with_socket<F>(&self, f: F) -> io::Result<()>
